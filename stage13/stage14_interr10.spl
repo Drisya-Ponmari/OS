@@ -1,0 +1,22 @@
+alias current_pid R1;
+current_pid  = [SYSTEM_STATUS_TABLE + 1] ;
+//Change the invoking process to terminated
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] =TERMINATED;
+
+//Find out whether all processes except idle are terminated. In that case, halt the system. Otherwise invoke the scheduler
+
+alias count R0;
+count = 1;
+while(count < 16) do
+	if([PROCESS_TABLE + (count * 16) + 4] ==TERMINATED) then
+		count = count +1;
+	else
+		break;
+	endif;
+endwhile;
+
+if(count == 16) then
+	halt;
+endif;
+	
+call MOD_5;

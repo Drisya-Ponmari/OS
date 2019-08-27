@@ -1,0 +1,4 @@
+alias counter R0;
+counter = 20;
+counter = (counter *(counter +1)*( (2*counter )+1))/6 ;
+print counter;
