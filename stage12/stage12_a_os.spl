@@ -1,0 +1,143 @@
+//load the the library
+loadi(63,13);
+loadi(64,14);
+
+//load init program
+loadi(65,7);
+loadi(66,8);
+
+//load interrupt-10 routine(exit)
+loadi(22,35);
+loadi(23,36);
+
+//load exception handler
+loadi(2,15);
+loadi(3,16);
+
+//load timer interrupt routine
+loadi(4,17);
+loadi(5,18);
+
+//load interrupt -7 routine (write)
+loadi(16,29);
+loadi(17,30);
+
+//load idle code
+loadi(69,11);
+loadi(70,12);
+
+//idle process code
+PTBR=PAGE_TABLE_BASE;
+
+//Library
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//Heap
+[PTBR+4] = 85;
+[PTBR+5] = "0110";
+[PTBR+6] = 86;
+[PTBR+7] = "0110";
+
+//Code
+[PTBR+8] = 69;
+[PTBR+9] = "0100";
+[PTBR+10] = 70;
+[PTBR+11] = "0100";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 81;
+[PTBR+17] = "0110";
+[PTBR+18] = -1;
+[PTBR+19] = "0000";
+
+PTLR=10;
+
+[81*512]=[69*512+1];
+
+//Process Id
+[PROCESS_TABLE + 1] = 0;
+
+//State of idle--created
+[PROCESS_TABLE + 4] = CREATED;
+
+//User Area Page Number
+[PROCESS_TABLE + 11] = 82;
+
+//Kernal stack pointer
+[PROCESS_TABLE + 12] = 0;
+ 
+//user stack pointer
+[PROCESS_TABLE + 13] = 8*512;
+
+//PTBR
+[PROCESS_TABLE + 14] = PTBR;
+
+//PTLR
+[PROCESS_TABLE + 15] = PTLR; 
+
+//INIT
+
+PTBR = PAGE_TABLE_BASE + 20;
+
+//Library
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//heap
+[PTBR+4] = 78;
+[PTBR+5] = "0110";
+[PTBR+6] = 79;
+[PTBR+7] = "0110";
+
+//code
+[PTBR+8] = 65;
+[PTBR+9] = "0100";
+[PTBR+10] = 66;
+[PTBR+11] = "0100";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//stack
+[PTBR+16] = 76;
+[PTBR+17] = "0110";
+[PTBR+18] = 77;
+[PTBR+19] = "0110";
+
+PTLR = 10;
+SP = 8 * 512;
+//User Area Page Number
+[PROCESS_TABLE + 16 + 11] = 80;
+
+//user stack pointer
+[PROCESS_TABLE + 16 + 13] = 8*512;
+
+//kptr
+[PROCESS_TABLE + 16 + 12] = 0;
+
+//PTBR
+[PROCESS_TABLE + 16 + 14] = PAGE_TABLE_BASE + 20;
+
+//PTLR
+[PROCESS_TABLE + 16 + 15] = 10;
+
+//State
+[PROCESS_TABLE + 16 + 4] = RUNNING;
+
+//Process Id
+[PROCESS_TABLE + 16 + 1] = 1;
+
+[76*512] = [65*512+1];
+[SYSTEM_STATUS_TABLE + 1] = 1;
+
+ireturn;       
