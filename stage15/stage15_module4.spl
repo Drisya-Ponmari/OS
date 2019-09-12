@@ -1,0 +1,38 @@
+
+alias functionNum R1; //Function number
+alias currentPID R2;	//Current PID
+alias word R3;  //Word to be  printed
+//Checking whether func number is 3
+
+if(functionNum ==3)
+then
+	//calling Acquire terminal
+	multipush(R1,R2,R3);
+
+	R1=8;  //Aquire terminal function number
+
+	R2=currentPID;  //Current pid
+
+	call MOD_0;   //calling research manager module
+
+	multipop(R1,R2,R3);
+
+	print word;   //printing the word
+
+	//Calling Release Terminal
+	multipush(R1,R2,R3);
+
+	R1=9;   //Release terminal
+
+	R2=currentPID;  //current pid
+
+	call MOD_0;    
+
+	multipop(R1,R2,R3);
+	//R0 will store the return value
+
+	return;
+else
+	return;
+endif;
+	
