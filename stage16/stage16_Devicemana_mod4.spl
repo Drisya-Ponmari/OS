@@ -1,0 +1,71 @@
+
+alias functionNum R1; 									//Function number
+alias currentPID R2;									//Current PID
+alias word R3;											
+											//Checking whether func number is 4
+if(functionNum ==3)
+then
+	//calling Acquire terminal
+	multipush(R1,R2,R3);
+
+	R1=8;  //Aquire terminal function number
+
+	R2=currentPID;  //Current pid
+
+	call MOD_0;   //calling resource manager module
+
+	multipop(R1,R2,R3);
+
+	print word;   //printing the word
+
+	//Calling Release Terminal
+	multipush(R1,R2,R3);
+
+	R1=9;   //Release terminal
+
+	R2=[SYSTEM_STATUS_TABLE + 1];  //current pid
+
+	call MOD_0;    
+
+	multipop(R1,R2,R3);
+	//R0 will store the return value
+
+	return;
+endif;
+	
+if(functionNum ==4)
+then
+											//calling Acquire terminal
+	multipush(R1,R2,R3);
+
+	R1=8;  										//Aquire terminal function number
+
+	R2=currentPID;  								//Current pid
+
+	call MOD_0;   									//calling resource manager module
+
+	multipop(R1,R2,R3);
+
+	read;										//Use read statement,for requesting to read from the terminal
+	
+	[PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_TERMINAL;	//change the state of  process
+											//Calling Release Terminal
+	multipush(R1,R2,R3);
+
+
+	call MOD_5;    
+
+	multipop(R1,R2,R3);
+	
+	alias phyPageNo R4;
+	alias offset R5;
+	alias wordaddress R6;
+	
+	phyPageNo   = [PTBR + 2* (R3/512)];
+	offset      = R3%512;
+	wordaddress = (phyPageNo * 512) + offset;
+	
+	[wordaddress]  = [PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 8];
+	return;
+endif;
+return;

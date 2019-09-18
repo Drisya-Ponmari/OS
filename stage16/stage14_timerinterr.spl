@@ -1,0 +1,33 @@
+//Switch to the kernel stack
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13 ] = SP;
+
+//kernel statck
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 11 ] * 512 -1;
+
+backup;
+
+//Change the state of the current process in its Process Table entry from RUNNING to READY.
+[PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = READY;
+
+//Loop through the process table entires and increment the TICK field of each process.
+
+//alias counter R0;
+//counter = 0;
+//while(counter <20) do
+//	[PROCESS_TABLE + (counter*16)] = [PROCESS_TABLE + (counter*16)]+1;
+//	counter = counter + 1;
+//endwhile;
+
+//Invoke the context switch module
+call MOD_5;
+
+//Restore the register context of the process using RESTORE instruction.
+
+restore;
+//Set SP as the user SP saved in the Process Table entry of the new process.
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] *16) +13];
+
+//Set the MODE_FLAG in the process table entry to 0.
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9 ] =0;
+
+ireturn;

@@ -1,0 +1,14 @@
+load --idle ../OS/stage16/stage12_idle.xsm
+load --init ../OS/stage16/stage16_init.xsm
+load --os ../OS/stage16/stage13_osstartup.xsm
+load --module 7 ../OS/stage16/stage16_bootmodule.xsm
+load --module 0 ../OS/stage16/stage15_mod0.xsm
+load --module 4 ../OS/stage16/stage16_Devicemana_mod4.xsm
+load --module 5 ../OS/stage16/stage14_module5.xsm
+load --int=10 ../OS/stage16/stage14_interr10.xsm
+load --int=7 ../OS/stage16/stage_15_int7.xsm
+load --int=6 ../OS/stage16/stage16_redsysint6.xsm
+load --exhandler ../spl/spl_progs/halt_prog.xsm
+load --int=timer ../OS/stage16/stage14_timerinterr.xsm
+load --int=console ../OS/stage16/stage16_consoleinterrupt.xsm
+load --library ../expl/library.lib

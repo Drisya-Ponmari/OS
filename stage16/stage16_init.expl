@@ -1,0 +1,25 @@
+int main()
+{
+	decl
+	
+	int x, y, temp1,r,temp2,temp3;
+	
+	enddecl
+	
+	begin
+	
+		temp1 = exposcall("Read",-1,x);
+		temp2 = exposcall("Read",-1,y);
+		
+		while(y!=0) do
+			
+			r = x%y;
+			x=y;
+			y=r;
+			
+		endwhile;
+		
+		temp3 = exposcall( "Write" ,  -2, x);
+		return 0;	
+	end
+}
