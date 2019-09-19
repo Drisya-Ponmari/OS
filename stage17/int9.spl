@@ -1,0 +1,123 @@
+alias currentPID R8;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+alias process_table_entry R9;
+process_table_entry = PROCESS_TABLE + currentPID*16;
+
+alias userSP R10;
+userSP = SP;
+
+[process_table_entry + 13] = SP;
+
+SP = [process_table_entry + 11]*512 - 1;
+
+[process_table_entry + 9] = 9;
+
+alias fileName R0;
+fileName = [[PTBR + 2*((userSP-4)/512)]*512 + ((userSP - 4)%512)];
+
+alias count R1;
+count = 0;
+while(count < MAX_FILE_NUM) do
+	if([INODE_TABLE + count*16 + 1] == fileName && [INODE_TABLE + count*16] == EXEC) then
+		break;
+	endif; 
+	count = count + 1;
+endwhile;
+
+if(count == MAX_FILE_NUM) then
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+    SP = [process_table_entry + 13];                
+    [process_table_entry + 9] = 0;  
+    ireturn;
+endif;
+
+alias inode_index R2;
+inode_index = count;
+
+multipush(R0,R1,R2,R8,R9,R10);
+R1 = 3;
+R2 = currentPID;
+call PROCESS_MANAGER;
+multipop(R0,R1,R2,R8,R9,R10);
+
+alias uap R3;
+uap = [process_table_entry + 11];
+
+[MEMORY_FREE_LIST + uap] = [MEMORY_FREE_LIST + uap] + 1;
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+SP = uap*512 - 1;
+
+[process_table_entry + 4] = RUNNING;
+[process_table_entry + 7] = inode_index;
+alias page_table R3;
+page_table = PAGE_TABLE_BASE + currentPID*20;
+
+//Library
+[page_table+0] = 63;
+[page_table+1] = "0100";
+[page_table+2] = 64;
+[page_table+3] = "0100";
+
+multipush(R0,R1,R2,R3,R8,R9,R10);
+
+//HEAP
+R1 = 1;
+call MEMORY_MANAGER;
+[page_table+4] = R0;
+[page_table+5] = "0110";
+R1 = 1;
+call MEMORY_MANAGER;
+[page_table+6] = R0;
+[page_table+7] = "0110";
+
+//STACK
+R1 = 1;
+call MEMORY_MANAGER;
+[page_table+16] = R0;
+[page_table+17] = "0110";
+R1 = 1;
+call MEMORY_MANAGER;
+[page_table+18] = R0;
+[page_table+19] = "0110";
+
+multipop(R0,R1,R2,R3,R8,R9,R10);
+
+alias numBlocks R6;
+numBlocks = [INODE_TABLE + inode_index * 16 + 2] / 512;                             
+if(([INODE_TABLE + inode_index * 16 + 2] % 512) != 0) then                             
+    numBlocks = numBlocks + 1;
+endif;
+
+count = 8;
+while(numBlocks > 0) do                                      
+
+    multipush(R1, R2, R3, R4, R5, R6, R7);
+    R1 = 1;
+    call MEMORY_MANAGER;
+    multipop(R1, R2, R3, R4, R5, R6, R7);
+    [page_table + count] = R0;
+    [page_table + count + 1] = "0100";
+    count = count + 2;
+    numBlocks = numBlocks - 1;
+
+endwhile;
+
+count = 0;
+while(count < 4) do
+
+    if([INODE_TABLE + inode_index * 16 + (count + 8)] != -1) then
+        loadi([page_table + 8 + 2 * count], [INODE_TABLE + inode_index * 16 + 8+count]);
+    endif;
+    count = count + 1;
+
+endwhile;
+
+
+[[page_table+16]*512] = [[page_table+8]*512 + 1];
+
+SP = 8*512;
+[process_table_entry + 9] = 0;
+
+ireturn;
