@@ -1,7 +1,6 @@
 alias functionNum R1; 
 		//Get free page
 if(functionNum == 1) then
-
 	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] +1;
 	while( [SYSTEM_STATUS_TABLE + 2] ==0) do
 		[PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_MEM;
@@ -22,6 +21,7 @@ if(functionNum == 1) then
 		count = count +1;
 	endwhile;
 	R0 = count;
+	breakpoint;
 	return;	
 endif;
 
@@ -42,7 +42,7 @@ if(functionNum ==2) then
 		endif;
 		counter = counter +1;
 	endwhile;
-	
+	breakpoint;
 	return;
 	
 endif;
