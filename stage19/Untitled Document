@@ -1,0 +1,15 @@
+load --module 7 ../OS/stage19/boot_module.xsm
+load --int=9 ../OS/stage19/int_9_routine.xsm
+load --exhandler ../OS/stage19/exception_handler.xsm
+load --module 2 ../OS/stage19/memory_manager.xsm
+load --module 1 ../OS/stage19/process_manager.xsm
+
+
+//
+
+load --module 7 ../OS/stage19/stage19_bootmodule.xsm
+load --exhandler ../OS/stage19/exception_handler.xsm
+load --int=9 ../OS/stage19/stage19_exec_9.xsm
+load --module 2 ../OS/stage19/stage19_mmm_2.xsm
+load --module 1 ../OS/stage19/stage19_pmm_1.xsm
+

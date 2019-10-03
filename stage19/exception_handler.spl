@@ -1,0 +1,85 @@
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = -1;              // Set mode flag to -1 to indicate exception handler
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;             // Save user stack pointer into the process table entry
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;   // Switch to kernel stack
+
+backup;     // Backup user context
+multipush(EIP);
+
+alias userSP R0;                                                        // Stores user stack pointer
+userSP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+
+if((EC != 0) || (userSP == PTLR * 512 - 1)) then
+
+    if(userSP == PTLR * 512 - 1) then   // User Stack Full
+        print("Usr St Full");
+    endif;
+
+    if(EC == 1) then                    // Illegal Instruction
+        print("Illeg Inst");
+    endif;
+
+    if(EC == 2) then                    // Illegal Memory Access
+        print("Illeg Mem A");
+    endif;
+
+    if(EC == 3) then                    // Arithmetic Exception
+        print("Div Zero");
+    endif;
+
+    multipush(R0);                      // Push all regs used
+    R1 = 3;                             // Invoke Exit Process
+    R2 = [SYSTEM_STATUS_TABLE + 1];     // PID of the process to be terminated
+    call PROCESS_MANAGER;               // Call Process Manager
+    multipop(R0);                       // Pop all regs used
+
+    call SCHEDULER;
+
+    return;                             // This won't be executed
+
+endif;
+
+if(4 <= EPN && EPN <= 7) then           // Code page to be loaded
+
+    alias codeBlock R1;
+    codeBlock = [DISK_MAP_TABLE + 10 * [SYSTEM_STATUS_TABLE + 1] + (EPN - 4) + 4];  // Get code block number from disk map table
+
+    R2 = codeBlock;
+    multipush(R0, R1);                                                              // Push all regs used
+    R1 = 5;                                                                         // invoke Get Code Page function
+    call MEMORY_MANAGER;                                                            // R2 contains code block number, call Memory Manager
+    [PTBR + 2 * EPN] = R0;                                                          // Update page table entry with page number (return value)
+    [PTBR + 2 * EPN + 1] = "1100";                                                  // Update page table entry to be valid and non - writable
+    multipop(R0, R1);                                                               // Pop all regs used
+
+endif;
+
+if(2 <= EPN && EPN <= 3) then       // Heap pages to be loaded
+
+    alias i R1;
+    i = 2;
+
+    while(i <= 3) do                                                                // Allocate heap pages
+        multipush(R0, R1);                                                          // Push all regs used
+        R1 = 1;                                                                     // invoke Get Free Page function
+        call MEMORY_MANAGER;                                                        // call Memory Manager
+        R2 = R0;
+        multipop(R0, R1);                                                           // Pop all regs used
+
+        [PTBR + 2 * i] = R2;                                                        // Update page table entry with page number (return value)
+        [PTBR + 2 * i + 1] = "1110";                                                // Update page table entry to be valid and writable        
+
+        i = i + 1;
+    endwhile;
+
+endif;
+
+[PROCESS_MANAGER + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;             // Set mode flag to 0, to indicate user mode
+multipop(EIP);                                                          // Pop EIP from kernel stack
+restore;                                                                // Restore user context
+
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];             // Switch to user stack
+SP = SP + 1;                                                            // Increment SP
+[[PTBR + 2 * (SP / 512)] * 512 + (SP % 512)] = EIP;                     // Place EIP reg value at the top of the user stack after address translation
+
+ireturn;

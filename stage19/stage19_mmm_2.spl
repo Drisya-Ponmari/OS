@@ -1,0 +1,102 @@
+alias functionNum R1; 
+		//Get free page
+if(functionNum == 1) then
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] +1;
+	while( [SYSTEM_STATUS_TABLE + 2] ==0) do
+		[PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_MEM;
+		multipush(R1);
+		call MOD_5;
+		multipop(R1);
+	endwhile;
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] -1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] -1;
+	
+	alias count R2;
+	count = 0;
+	while(count <128) do
+		if([MEMORY_FREE_LIST + count] ==0 ) then
+			[MEMORY_FREE_LIST + count] =1;
+			break;
+		endif;
+		count = count +1;
+	endwhile;
+	R0 = count;
+	return;	
+endif;
+
+		//Release page number
+if(functionNum ==2) then
+	alias PageNum R2;
+	[MEMORY_FREE_LIST + PageNum] = [MEMORY_FREE_LIST + PageNum] -1;
+	
+	if([MEMORY_FREE_LIST + PageNum] == 0) then 
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] +1;
+	endif;
+	
+	alias counter R3;
+	counter = 0;
+	while(counter < 16) do 
+		if( [PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] == WAIT_MEM) then
+			[PROCESS_TABLE  + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = READY;
+		endif;
+		counter = counter +1;
+	endwhile;
+	return;
+	
+endif;
+
+//Get code Page
+if(functionNum == 5) then
+		alias blockNum R2;
+
+		alias i R3;
+		alias j R4;
+		alias pageNum R5;
+		alias ptable R9;
+		i=0;
+		while(i < MAX_PROC_NUM) do
+		ptable = PAGE_TABLE_BASE + i * 20;
+			j=0;
+			
+			while ( j < 4) do
+				if([DISK_MAP_TABLE + i * 10 + j + 4] == blockNum && [ptable + (j*2) + 8] != -1) then
+					pageNum = [PTBR + 2 * (j+4)];              //return the memory pageNum
+					[MEMORY_FREE_LIST + pageNum]  = [MEMORY_FREE_LIST + pageNum] + 1;
+					R0 = pageNum;
+					return;
+				endif;
+				j = j+1; 
+			endwhile;
+			i = i + 1;
+		endwhile;
+
+		multipush(R1, R2, R3, R4, R5);                              // Push all regs used
+    		R1 = 1;                                                     // call Get Free Page
+    		call MOD_2;                                        // call memory manager
+    		multipop(R1, R2, R3, R4, R5);                               // Pop all regs used
+    		pageNum = R0;                                               // Place returned page number into reg
+
+    R10= pageNum;
+    R11= blockNum;
+    multipush(R1, R2, R3, R4, R5);                              // Push all regs used
+    	R1 = 2;                                                     // call Disk Load function
+    	R2 = [SYSTEM_STATUS_TABLE + 1];                             // PID of current process
+    	R3 = R10;                                                    // page number (where to load the block to)
+    	R4 = R11;                                                    // block number (from where to load)
+    	call MOD_4;
+    multipop(R1, R2, R3, R4, R5);
+
+		R0 = pageNum;
+		return;
+endif;
+		//Release Block
+
+if (functionNum == 4 ) then
+	
+	alias blockNum R2;
+	
+	//Decrement the count of blockNum in Disk free List
+	[DISK_FREE_LIST + blockNum ] = [DISK_FREE_LIST + blockNum ] -1;
+	
+	return;
+endif;

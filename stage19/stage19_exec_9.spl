@@ -1,0 +1,122 @@
+alias userSP R5;
+userSP = SP;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;                    
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;    
+
+
+alias fileName R1;                                                              
+
+fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];    
+
+alias id R2;
+id = 0;
+while(id < MAX_FILE_NUM) do
+
+    if([INODE_TABLE + 16 * id  + 1] == fileName && [INODE_TABLE + 16 * id + 0] == EXEC) then
+        break;
+    endif;
+
+    id = id + 1;
+endwhile;
+
+
+if(id == MAX_FILE_NUM) then
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+    SP = [PROCESS_MANAGER + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];                   
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;                       
+    ireturn;
+endif;
+
+
+multipush(R5, R1, R2);                                                          
+R1 = 3;                                                                        
+R2 = [SYSTEM_STATUS_TABLE + 1];                                                
+call MOD_1;                                                           
+multipop(R5, R1, R2);                                                           
+
+
+alias currentUserAreaPage R3;
+currentUserAreaPage = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];    
+
+[MEMORY_FREE_LIST + currentUserAreaPage] = [MEMORY_FREE_LIST + currentUserAreaPage] + 1;    
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;                                  
+
+
+SP = currentUserAreaPage * 512 - 1;                                             
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = RUNNING;                
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 7] = id;                    
+
+alias page_table R4;
+page_table = PAGE_TABLE_BASE + [SYSTEM_STATUS_TABLE + 1] * 20;
+
+[page_table + 0] = 63;          // Library 1
+[page_table + 1] = "0100";
+[page_table + 2] = 64;          // Library 2
+[page_table + 3] = "0100";
+
+
+//Heap
+
+alias freePage R0;
+
+// Heap --Don't allocate the pages for heap
+
+[page_table + 4] = -1;             // Heap 1
+[page_table + 5] = "0000";
+
+[page_table + 6] = -1;             // Heap 2
+[page_table + 7] = "0000";
+
+
+
+// Stack
+
+multipush(R5, R1, R2, R3, R4);                                                  
+R1 = 1;                                                                        
+call MOD_2;                                                            
+multipop(R5, R1, R2, R3, R4);
+[page_table + 16] = freePage;   // Stack 1
+[page_table + 17] = "0110";
+
+multipush(R5, R1, R2, R3, R4);                                                  
+R1 = 1;                                                                         
+call MOD_2;                                                            
+multipop(R5, R1, R2, R3, R4);
+[page_table + 18] = freePage;   // Stack 2
+[page_table + 19] = "0110";
+
+
+alias i R7;
+i = 10;
+while(i <= 14) do                                                               
+    [page_table + i] = -1;
+    [page_table + i + 1] = "0000";
+    i = i + 2;
+endwhile;
+
+//Initialize the disk map table of the process
+i=0;
+while(i<4) do
+	[DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 1] * 10 + i+4] = [INODE_TABLE + 16 * id + i + 8];
+	i=i+1; 
+endwhile;
+
+
+multipush(R1, R2, R3, R4, R5, R6, R7);
+R1 = 5;               //Get code Page
+R2 = [INODE_TABLE + 16 * id + 8];  //PID
+call MOD_2;           //Memory manager module
+multipop(R1, R2, R3, R4, R5, R6, R7);
+[page_table + 8] = freePage;
+[page_table + 9] = "0100";
+
+[[page_table + 16] * 512] = [[page_table + 8] * 512 + 1];                       // Place IP at the top of the user stack
+
+SP = 8 * 512;                                                                   // Shift to user stack
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;                       // Set mode flag to refer to user mode (i.e. 0)
+
+ireturn;
