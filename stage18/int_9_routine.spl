@@ -1,0 +1,157 @@
+alias userSP R5;
+userSP = SP;                                                                    // Get user stack pointer
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;                     // Switching from user to kernel stack
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;                       // System call number
+
+alias fileName R1;                                                              // This would store the argument passed (i.e. file name)
+
+fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];    // Get filename
+
+alias idx R2;
+idx = 0;
+while(idx < MAX_FILE_NUM) do
+
+    if([INODE_TABLE + 16 * idx + 1] == fileName && [INODE_TABLE + 16 * idx + 0] == EXEC) then
+        break;
+    endif;
+
+    idx = idx + 1;
+endwhile;
+
+if(idx == MAX_FILE_NUM) then
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+    SP = [PROCESS_MANAGER + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];                   // Shift to user stack
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;                       // Set mode flag to 0
+    ireturn;
+endif;
+
+multipush(R5, R1, R2);                                                          // Save used regs in kernel stack
+R1 = 3;                                                                         // Exit Process function (no 3) in process manager
+R2 = [SYSTEM_STATUS_TABLE + 1];                                                 // Get PID of current process from system status table
+call PROCESS_MANAGER;                                                           // Call Exit process inside the process manager module
+multipop(R5, R1, R2);                                                           // Get back used regs for deallocated kernel stack
+
+alias currentUserAreaPage R3;
+currentUserAreaPage = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];    // Get user area page number of terminated process
+
+[MEMORY_FREE_LIST + currentUserAreaPage] = [MEMORY_FREE_LIST + currentUserAreaPage] + 1;    // Increment entry of this page in the memory free list
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;                                  // Decrement the memory free count in the system status table
+
+alias perProcRecOff R4;                                                         // Imp: Do not use this later since, we have 2 aliases referring to R4
+perProcRecOff = 494;                                                            // Offset of the Address to the starting of the last 16 words of the user area page
+
+while(perProcRecOff < 512) do                                                   // New process has not opened any files or semaphores
+
+    [currentUserAreaPage * 512 + perProcRecOff] = -1;                           // Resource Id
+    [currentUserAreaPage * 512 + perProcRecOff + 1] = -1;                       // Index of open file / semaphore table entry
+    perProcRecOff = perProcRecOff + 2;
+
+endwhile;
+
+
+SP = currentUserAreaPage * 512 - 1;                                             // Get new kernel SP
+
+// New process would use the PID of the terminated process
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 4] = RUNNING;                 // Set state of new process to RUNNING
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 7] = idx;                     // Set inode index obtained above
+
+alias page_table R4;
+page_table = PAGE_TABLE_BASE + [SYSTEM_STATUS_TABLE + 1] * 20;
+
+[page_table + 0] = 63;          // Library 1
+[page_table + 1] = "0100";
+[page_table + 2] = 64;          // Library 2
+[page_table + 3] = "0100";
+
+alias freePage R0;
+
+// Heap
+
+multipush(R5, R1, R2, R3, R4);                                                  // Store all used regs
+R1 = 1;                                                                         // Get Free Page function (no 1) in memory manager
+call MEMORY_MANAGER;                                                            // call memory manager
+multipop(R5, R1, R2, R3, R4);
+[page_table + 4] = freePage;    // Heap 1
+[page_table + 5] = "0110";
+
+multipush(R5, R1, R2, R3, R4);                                                  // Store all used regs
+R1 = 1;                                                                         // Get Free Page function (no 1) in memory manager
+call MEMORY_MANAGER;                                                            // call memory manager
+multipop(R5, R1, R2, R3, R4);
+[page_table + 6] = freePage;    // Heap 2
+[page_table + 7] = "0110";
+
+// Stack
+
+multipush(R5, R1, R2, R3, R4);                                                  // Store all used regs
+R1 = 1;                                                                         // Get Free Page function (no 1) in memory manager
+call MEMORY_MANAGER;                                                            // call memory manager
+multipop(R5, R1, R2, R3, R4);
+[page_table + 16] = freePage;   // Stack 1
+[page_table + 17] = "0110";
+
+multipush(R5, R1, R2, R3, R4);                                                  // Store all used regs
+R1 = 1;                                                                         // Get Free Page function (no 1) in memory manager
+call MEMORY_MANAGER;                                                            // call memory manager
+multipop(R5, R1, R2, R3, R4);
+[page_table + 18] = freePage;   // Stack 2
+[page_table + 19] = "0110";
+
+alias numBlocks R6;
+numBlocks = [INODE_TABLE + idx * 16 + 2] / 512;                                 // Get number of code blocks required
+if(([INODE_TABLE + idx * 16 + 2] % 512) != 0) then                              // If not divisible, account for extra block used
+    numBlocks = numBlocks + 1;
+endif;
+
+alias i R7;
+i = 8;
+while(i <= 14) do                                                               // Set all entries as invalid
+    [page_table + i] = -1;
+    [page_table + i + 1] = "0000";
+    i = i + 2;
+endwhile;
+
+i = 8;
+while(numBlocks > 0) do                                                         // Allocate pages for the code
+
+    multipush(R1, R2, R3, R4, R5, R6, R7);
+    R1 = 1;
+    call MEMORY_MANAGER;
+    multipop(R1, R2, R3, R4, R5, R6, R7);
+    [page_table + i] = freePage;
+    [page_table + i + 1] = "0100";
+    i = i + 2;
+    numBlocks = numBlocks - 1;
+
+endwhile;
+
+i = 0;
+while(i < 4) do                                                                 // Load code from disk blocks to memory pages
+
+    if([INODE_TABLE + idx * 16 + (i + 8)] != -1) then
+
+        R8 = [page_table + 8 + 2 * i];                                          // Memory page where the code is to be loaded
+        R9 = [INODE_TABLE + idx * 16 + 8 + i];                                      // Disk block from where the code is to be loaded
+
+        multipush(R1, R2, R3, R4, R5, R6, R7);                                  // Push all registers used
+        R1 = 2;                                                                 // Function number of Disk Load
+        R2 = [SYSTEM_STATUS_TABLE + 1];                                         // PID of current process
+        R3 = R8;                                                                // Memory Page Number where the block is to be loaded
+        R4 = R9;                                                                // Disk Block Number of the block which is to be loaded
+        call DEVICE_MANAGER;
+        multipop(R1, R2, R3, R4, R5, R6, R7);                                   // Pop all registers used
+
+    endif;
+    i = i + 1;
+
+endwhile;
+
+[[page_table + 16] * 512] = [[page_table + 8] * 512 + 1];                       // Place IP at the top of the user stack
+
+SP = 8 * 512;                                                                   // Shift to user stack
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;                       // Set mode flag to refer to user mode (i.e. 0)
+
+ireturn;

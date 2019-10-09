@@ -1,0 +1,20 @@
+load --idle ../OS/stage16/stage12_idle.xsm
+load --os ../OS/stage16/stage13_osstartup.xsm
+load --module 5 ../OS/stage16/stage14_module5.xsm
+load --int=10 ../OS/stage16/stage14_interr10.xsm
+load --int=7 ../OS/stage16/stage_15_int7.xsm
+load --int=6 ../OS/stage16/stage16_redsysint6.xsm
+load --exhandler ../spl/spl_progs/halt_prog.xsm
+load --int=timer ../OS/stage16/stage14_timerinterr.xsm
+load --int=console ../OS/stage16/stage16_consoleinterrupt.xsm
+load --library ../expl/library.lib  
+load --int=9 ../OS/stage17/stage17_execint.xsm
+load --module 2 ../OS/stage17/stage17_mmm_module2.xsm
+load --module 1 ../OS/stage17/stage17_pmm_module1.xsm
+load --init ../OS/stage17/stage17_a_init.xsm
+load --exec ../OS/stage17/e.xsm
+load --module 7 ../OS/stage18/stage18_bootmodule.xsm
+load --module 4 ../OS/stage18/stage18_Dmm_m4.xsm
+load --module 0 ../OS/stage18/stage18_Rmm_m0.xsm
+load --int=9 ../OS/stage18/stage18_execint_9.xsm
+load --int=disk ../OS/stage18/stage18_Diskint.xsm 

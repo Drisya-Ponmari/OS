@@ -1,0 +1,28 @@
+breakpoint;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13 ] = SP;			//Store the value of register SP in UPTR
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 11 ] * 512 -1;	//kernel statck
+
+backup;
+
+//Disk is no longer busy
+[DISK_STATUS_TABLE] =0;
+
+alias count R6;
+	count = 0;
+	while(count <16) do
+	
+		if( ([PROCESS_TABLE + (count *16) + 1] > 0) &&   ([PROCESS_TABLE + (count *16) + 4] ==WAIT_DISK))
+		then
+			 [PROCESS_TABLE + (count *16) + 4] =READY;
+		endif;
+		
+		count = count +1;
+	endwhile;
+
+restore;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13 ] ;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9 ] = 0;
+breakpoint;
+ireturn;
