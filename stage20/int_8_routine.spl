@@ -1,0 +1,130 @@
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 8;                   // Set mode flag to 8 (system call number)
+
+alias userSP R0;                                                            // Place user SP into this reg (R0)
+userSP = SP;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;                 // Save user SP value in the process table
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;       // and switch to kernel stack
+
+multipush(R0);          // Push all regs used
+R1 = 1;                 // Call Get PCB Entry function in the process manager
+call PROCESS_MANAGER;   // Call Process Manager module
+alias childPID R1;
+childPID = R0;          // Store return value into childPID (reg R1)
+multipop(R0);           // Pop all regs used
+
+if(childPID == -1) then                                                     // If a free process table is not available, this value would be -1
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;  // Place -1 as the return value
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;               // Set mode flag as 0
+    SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];             // Get back user SP
+    ireturn;
+endif;
+
+if([PTBR + 4] == -1) then   // If heap pages are not allocated for the parent process, allocate them
+
+    multipush(R0, R1);      // Push all regs used
+    
+    R1 = 1;                 // call Get Free Page function in the memory manager for 1st heap page
+    call MEMORY_MANAGER;    // call memory manager
+    [PTBR + 4] = R0;        // Set returned page number in the page table
+    [PTBR + 5] = "1110";    // Set the auxiliary info
+    
+    R1 = 1;                 // call Get Free Page function in the memory manager for 2nd heap page
+    call MEMORY_MANAGER;    // call memory manager
+    [PTBR + 6] = R0;        // Set returned page number in the page table
+    [PTBR + 7] = "1110";    // Set the auxiliary info
+
+    multipop(R0, R1);       // Pop all regs used
+
+endif;
+
+alias child_pt R2;
+child_pt = PAGE_TABLE_BASE + 20 * childPID; // Get the page table beginning of the child process
+
+alias i R3;
+
+alias child_p R4;
+child_p = PROCESS_TABLE + 16 * childPID;    // Get the process table beginning of the child process 
+
+// Allocate the stack pages for the child process
+
+alias stackPageOne R6;
+alias stackPageTwo R7;
+
+multipush(R0, R1, R2, R3, R4);              // Push all regs used
+R1 = 1;                                     // call Get Free Page for the stack pages
+call MEMORY_MANAGER;                        // call memory manager
+stackPageOne = R0;                          // Place returned value in R6
+multipush(R6);                              // Push R6
+R1 = 1;                                     // call Get Free Page for the stack pages
+call MEMORY_MANAGER;                        // call memory manager
+stackPageTwo = R0;                          // Place returned value in R7
+multipop(R0, R1, R2, R3, R4, R6);           // Pop all regs used
+
+multipush(R0, R1, R2, R3, R4, R6, R7);      // Push all regs used
+R1 = 1;                                     // call Get Free Page for the User Page Area page
+call MEMORY_MANAGER;                        // call memory manager
+R5 = R0;                                    // Place returned value in R5
+multipop(R0, R1, R2, R3, R4, R6, R7);       // Pop all regs used
+
+[child_p + 11] = R5;    // Place the returned page number into the process table (for the user page area)
+
+alias process_table R5;
+process_table = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16; // Get process table entry of the parent process
+
+[child_p + 3] = [process_table + 3];    // Set userid of parent to that of child
+[child_p + 6] = [process_table + 6];    // Copy swap flag
+[child_p + 7] = [process_table + 7];    // Inode index will remain the same
+[child_p + 10] = [process_table + 10];  // Copy user area swap status
+[child_p + 13] = [process_table + 13];  // UPTR field should also be copied
+
+[child_p + 0] = 0;                          // Set TICK field to 0
+[child_p + 2] = [SYSTEM_STATUS_TABLE + 1];  // Parent PID field
+[child_p + 4] = CREATED;                    // Set state to CREATED
+[child_p + 9] = 0;                          // Set mode flag to 0
+[child_p + 12] = 0;                         // Set KPTR to 0
+
+i = 496;
+while(i < 512) do                       // Copying the entries of the per-process resource table of the parent into the child
+    [[child_p + 11] * 512 + i] = [[process_table + 11] * 512 + i];
+    i = i + 1;
+endwhile;
+
+i = 2;
+while(i <= 9) do                        // Copying the entries of the disk map table of the parent into the child
+    [DISK_MAP_TABLE + 10 * childPID + i] = [DISK_MAP_TABLE + 10 * [SYSTEM_STATUS_TABLE + 1] + i];
+    i = i + 1;
+endwhile;
+
+i = 0;
+while(i <= 15) do                                                           // Copy the page table entries corresponding to the library, heap and 
+    [child_pt + i] = [PTBR + i];                                            // code pages from the parent page table to the child's process table
+    [child_pt + i + 1] = [PTBR + i + 1];                                    // Copy auxiliary info
+    [MEMORY_FREE_LIST + [PTBR + i]] = [MEMORY_FREE_LIST + [PTBR + i]] + 1;  // Increment the share count in the memory free list corresponding to these shared pages
+    i = i + 2;
+endwhile;
+
+[child_pt + 16] = stackPageOne;         // Place the allocated stack page numbers into the page table
+[child_pt + 17] = [PTBR + 17];          // The auxiliary information is same as the parent process
+[child_pt + 18] = stackPageTwo;
+[child_pt + 19] = [PTBR + 19];
+
+// Copy user stack page content of the parent
+// process into the child process
+i = 0;
+while(i < 512) do
+    [[child_pt + 16] * 512 + i] = [[PTBR + 16] * 512 + i];  // stack page 1
+    [[child_pt + 18] * 512 + i] = [[PTBR + 18] * 512 + i];  // stack page 2
+    i = i + 1;
+endwhile;
+
+[[child_p + 11] * 512] = BP;           // Push BP onto the top of the kernel stack of the child process
+
+[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = childPID;     // Place child's PID as the return value to the parent
+[[child_pt + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;        // Place 0 as the return value to the child
+
+[process_table + 9] = 0;              // Setting mode flag of the parent to 0 (indicating user mode)
+
+SP = [process_table + 13];            // Switch back to the user SP of the parent process
+
+ireturn;

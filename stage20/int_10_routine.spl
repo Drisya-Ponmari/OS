@@ -1,0 +1,11 @@
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 10;              // Set mode flag to 10 (syscall no.)
+
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13] = SP;             // Save SP to UPTR field in the process table
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;   // Switch to kernel stack
+
+R1 = 3;                         // call Exit Process function
+R2 = [SYSTEM_STATUS_TABLE + 1]; // PID is passed as an argument
+call PROCESS_MANAGER;           // call process manager
+
+// call scheduler module to schedule another process
+call SCHEDULER;

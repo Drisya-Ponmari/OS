@@ -1,0 +1,53 @@
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];                         // Get current PID
+
+SP = SP + 1;                                                    // Increment kernel stack pointer to store BP
+[SP] = BP;                                                      // Store BP
+
+alias current_process_table R1;
+current_process_table = PROCESS_TABLE + 16 * currentPID;        // Get current process table entry
+
+[current_process_table + 12] = SP % 512;                        // Store KPTR
+[current_process_table + 14] = PTBR;                            // PTBR
+[current_process_table + 15] = PTLR;                            // PTLR
+
+alias newPID R1;                                                // This would store the new PID
+newPID = (currentPID % 15) + 1;
+
+alias iter R3;
+iter = 0;
+
+while((iter < 16) && ([PROCESS_TABLE + 16 * newPID + 4] != READY && [PROCESS_TABLE + 16 * newPID + 4] != CREATED)) do       // iterate to find new PID
+    newPID = (newPID % 15) + 1;
+    iter = iter + 1;
+endwhile;
+
+if(iter == 16) then                                             // If no other process is not TERMINATED, then schedule idle
+    newPID = 0;
+endif;
+
+alias new_process_table R2;
+new_process_table = PROCESS_TABLE + 16 * newPID;                // Get new process table entry
+
+SP = [new_process_table + 11] * 512 + [new_process_table + 12]; // Set SP to kernel stack of new process
+
+PTBR = [new_process_table + 14];                                // New PTBR
+PTLR = [new_process_table + 15];                                // New PTLR
+
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if([new_process_table + 4] == CREATED) then                     // If the process is in created state, then do the following
+
+    SP = [new_process_table + 13];                              // Set SP to UPTR
+    BP = [[new_process_table + 11] * 512];                      // Get BP from the top of the kernel stack
+    [new_process_table + 4] = RUNNING;                          // Set state to RUNNING
+    [new_process_table + 9] = 0;                                // Set mode flag to 0
+    ireturn;
+endif;
+
+[new_process_table + 4] = RUNNING;                              // Set state to RUNNING
+
+BP = [SP];                                                      // Get BP from the top of the kernel stack
+SP = SP - 1;                                                    // Decrement SP
+
+return;

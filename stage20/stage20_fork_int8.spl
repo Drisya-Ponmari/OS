@@ -1,0 +1,147 @@
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 8;              // Set mode flag to 8 to indicate fork system call
+
+alias userSP R0;
+userSP = SP;							//save the user stack in R0
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;             // Save user stack pointer into the process table entry
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;   // Switch to kernel stack
+
+backup; 
+
+alias cPid R1;
+//Invoke Get pcb entry -- to get PID for child process
+
+multipush(R0);
+R1 = 1;    //Get pcb entry (1) 
+call MOD_1;	//pmm
+cPid = R0;
+multipop(R0);
+
+//If PID is not available return the system call
+
+if(cPid == -1) then
+
+	[ [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512) ] = -1;  	//return value will b -1	
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;	//Mode set to 0
+	SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];     //Get back userSP
+	return;
+endif;
+
+//Heap page allocated if it is not
+
+if([PTBR + 4] == -1) then
+	multipush(R0,R1);
+	R1 = 1; //get free page(1)
+	call MOD_2; //mmm 
+	
+	//set the heap info
+	[PTBR + 4] = R0;
+	[PTBR + 5] = "1110";
+	
+	R1=1;
+	call MOD_2;
+	
+	[PTBR + 6] = R0;
+	[PTBR + 7] = "1110";
+	
+	multipop(R0,R1);
+endif;
+	
+
+alias cPagetable R2;
+alias  cProctable R3;
+
+cPagetable = PAGE_TABLE_BASE + cPid * 20;   //child page table
+cProctable = PROCESS_TABLE + cPid * 16;     //child process table
+
+//Allocate Child stack and user area page
+
+multipush(R0,R1,R2,R3);
+	R1 = 1;
+	call MOD_2;
+	
+	[cPagetable + 16] = R0;		//stackone
+	[cPagetable + 17] = [PTBR + 17];
+	
+	R1 = 1;
+	call MOD_2;
+	
+	[cPagetable + 18] = R0;		//stacktwo
+	[cPagetable + 19] = [PTBR + 19];
+	
+	R1 = 1;
+	call MOD_2;
+	
+	[cProctable + 11] = R0;		//get userarea page 
+
+multipop(R0,R1,R2,R3);
+
+//Process table for child process
+alias  proctable R4;
+proctable = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16;
+//UserId,swap flag,user area swap status, inode index, UPTR are same as parent
+
+[cProctable + 3] = [proctable + 3]; 	//userid
+[cProctable + 6] = [proctable + 6];	//swap flag
+[cProctable + 7] = [proctable + 7];	//inode index
+[cProctable + 10] = [proctable + 10];	//user area swap status
+[cProctable + 13] = [proctable + 13];	//UPTR
+
+//mode flag , kptr, tick field set to zero
+
+[cProctable] = [proctable]; 		//tick
+[cProctable + 9] = [proctable + 9];	//mode flag
+[cProctable + 12] = [proctable + 12];	//kptr
+
+//pid of parent in ppid field of children
+
+[cProctable + 2] = [proctable + 1];
+
+//state of child process to be created
+[cProctable + 3] = CREATED;
+
+alias counter R5;
+
+//per-process Disk map table for child process
+
+counter = 2;
+while(counter < 10) do 
+	[DISK_MAP_TABLE + cPid * 10 + counter] = [DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 1] * 10 + counter];
+	counter = counter + 1;
+endwhile;
+
+//pagetable --> heap ,code ,library pages are same as parent process
+counter = 0;
+while(counter< 8) do
+	[cPagetable + counter] = [PTBR + counter];
+	[ MEMORY_FREE_LIST + [cPagetable + counter] ] = [ MEMORY_FREE_LIST + [cPagetable + counter] ] + 1; //mem free list incr
+	[cPagetable + counter+1] = [PTBR + counter+1];
+	 counter = counter + 2;
+endwhile;
+
+//per-Process resource table
+
+counter = 496;
+while(counter < 512) do                       
+    [[cProctable + 11] * 512 + counter] = [[proctable + 11] * 512 + counter];
+    counter = counter + 1;
+endwhile;
+
+//cpy content of the user stack  parent to child
+counter =0;
+while(counter <512) do
+	[[cPagetable + 16] * 512 + counter] = [[PTBR + 16] * 512 + counter];   //cpy word by word 
+	counter = counter + 1;
+endwhile;
+
+[[cProctable + 11] * 512] = BP;
+
+
+[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = cPid;     // return value of parent process
+[[cPagetable + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;        //return value of child process is zero
+
+[proctable + 9] = 0;              // reset user mode flag
+
+SP = [proctable + 13];            // Switch back to the user SP of the parent process
+
+ireturn;
