@@ -1,0 +1,59 @@
+//Obtaint the PID of current process from status table
+alias current_pid R0;
+current_pid = [SYSTEM_STATUS_TABLE + 1];
+
+//Push BP to the top of the kernel stack
+//[PROCESS_TABLE + (current_pid) * 16 + 13] = BP;
+SP=SP+1;
+[SP] = BP;
+
+//Process table entry for the corresponding process
+alias process_entry R1;
+process_entry = PROCESS_TABLE + (current_pid * 16 );
+
+
+[process_entry + 12 ] = SP % 512; //KPTR
+[process_entry +14 ] =PTBR; 	//PTBR
+[process_entry + 15 ] =PTLR;		//PTLR
+// new process initialised as idle
+alias new_pid R2;
+
+//Finding is there exist any other process with valid PID in CREATED/READY state
+alias count R3;
+count = current_pid+1;
+while (count < 16) do
+	if(  [PROCESS_TABLE + (count*16) + 4] == CREATED || [PROCESS_TABLE + (count*16) + 4] == READY) then 
+		
+		if ([PROCESS_TABLE + (count*16) + 1] != -1 ) then
+			new_pid = count;
+			break;
+		endif;
+	else
+		new_pid = 0;
+	endif;
+	count = count + 1;
+endwhile;
+//Getting details of new process
+alias new_process_table R4;
+new_process_table = PROCESS_TABLE + (new_pid * 16) ;
+//set the new sp
+SP = [new_process_table + 11 ] * 512 + [new_process_table + 12];
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+//set the new pid
+[SYSTEM_STATUS_TABLE + 1] = new_pid;
+//Check the process id running for the first time
+if( [new_process_table + 4] == CREATED) then 
+	[new_process_table + 4] = RUNNING;
+	SP =[new_process_table + 13];
+	BP = [[new_process_table + 11] * 512]; 
+	[new_process_table + 9 ] = 0;
+	ireturn;
+endif; 
+
+[new_process_table+4] = RUNNING;
+
+//restore bp
+BP = [SP];
+SP = SP -1;
+return;

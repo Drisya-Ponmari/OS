@@ -1,0 +1,25 @@
+load --exec ../OS/stage22/chil.xsm
+load --int=console ../OS/stage22/console.xsm
+load --int=disk ../OS/stage22/disk.xsm
+load --exhandler ../OS/stage22/exhandler.xsm
+load --int=6 ../OS/stage22/int6.xsm
+load --int=7 ../OS/stage22/int7.xsm
+load --int=8 ../OS/stage22/int8.xsm
+load --int=9 ../OS/stage22/int9.xsm
+load --int=10 ../OS/stage22/int10.xsm
+load --int=11 ../OS/stage22/int11.xsm 
+load --int=13 ../OS/stage22/int13.xsm
+load --int=14 ../OS/stage22/int14.xsm
+load --int=15 ../OS/stage22/int15.xsm
+load --module 0 ../OS/stage22/mod0.xsm
+load --module 1 ../OS/stage22/mod1.xsm
+load --module 2 ../OS/stage22/mod2.xsm
+load --module 4 ../OS/stage22/mod4.xsm
+load --module 5 ../OS/stage22/mod5.xsm
+load --module 7 ../OS/stage22/mod7.xsm
+load --os ../OS/stage22/os.xsm
+load --init ../OS/stage22/shell.xsm
+load --idle ../OS/stage16/stage12_idle.xsm
+load --library ../expl/library.lib
+load --int=timer ../OS/stage22/timer.xsm
+

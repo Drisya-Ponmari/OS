@@ -1,0 +1,89 @@
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+alias userSP R1;
+userSP = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 11] * 512 - 1; 
+
+//Argument
+alias PhysicalPageNum R2;
+alias offset R3;
+alias funNum R4;
+PhysicalPageNum = [PTBR + 2 *((userSP - 5)/512)];
+offset = (userSP - 5) % 512;
+funNum = [(PhysicalPageNum * 512) + offset];
+
+//semget - Aquiring the semaphore
+if(funNum == 17) then
+ 	
+ 		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 17;
+ 		
+ 		alias perpt R6;
+ 		alias counter R7;
+ 		
+ 		perpt = ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11]) * 512 + (512 - 16);
+ 		alias flag R8;
+ 		flag = -1;
+ 		counter = 0;
+ 		
+ 		//finds the free entry in the  pre - process table
+ 		while(counter < 16) do 
+ 			if([perpt + counter] == -1 ) then
+ 				flag = 1;
+ 				break;
+ 			endif;
+ 			counter = counter + 2;
+ 		endwhile;
+ 		
+ 		if(flag == 1) then
+ 			multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+ 			R1 = 6; //Acquire semaphore
+ 			R2 = [SYSTEM_STATUS_TABLE + 1];
+ 			call MOD_0; //Resource manager
+ 			multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+ 		endif;
+ 		
+ 		if(R0 != -1) then
+ 			[perpt + counter ] = 1;
+ 			[perpt + counter + 1] = R0;
+ 		else if(flag == -1) then
+ 			R0 = -1;
+ 		else
+ 			R0 = -2;
+ 		endif;
+ 		endif;
+ 		
+ 		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+ 		[ [PTBR + 2 *((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = R0;
+ 		SP =  [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13];
+ 		ireturn;
+ endif;
+ 		
+ //Semrelease -- Release the terminal
+ if(funNum == 18) then
+ 
+ 	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 18;
+ 	
+ 	alias perpt R6;
+ 	alias semid R7;
+ 	
+ 	semid = [[PTBR + 2 *((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
+ 	perpt = ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11]) * 512 + (512 - 16);
+ 	
+ 	if(semid >=0 && semid < 8 && [perpt+semid] ==1) then
+ 		multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+ 		R1 = 7; 				//Release semaphore
+ 		R2 = [SYSTEM_STATUS_TABLE + 1];
+ 		R3 = [perpt + semid+1];
+ 		call MOD_0; 				//Resource manager
+ 		multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+ 		[perpt + semid] = -1;
+ 		[perpt + semid + 1] = 0;
+ 		R0=0;
+ 	else
+ 		R0 = -1;
+ 	endif;
+ 	
+ 	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+ 	[[PTBR + 2 *((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = R0;
+ 	SP =  [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13];
+ 	ireturn;
+ endif;

@@ -1,0 +1,34 @@
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = -1;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11]*512 - 1;
+backup;
+multipush(EIP);
+
+if(EC != 0 || ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] == PTLR*512-1)) then
+	print("Fault");
+	R1 = 3;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_1;
+	call MOD_5;
+	return;
+endif;
+
+if( EPN == 4 || EPN == 5 || EPN == 6 || EPN ==7) then
+	R1 = 5;
+	R2 = [DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 1]*10 + EPN];
+	call MOD_2;
+	[PTBR + EPN*2] = R0;
+	[PTBR + EPN*2+1] = "1100";
+else
+	R1 = 1;
+	call MOD_2;
+	[PTBR + EPN*2] = R0;
+	[PTBR + EPN*2+1] = "1110";
+endif;
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+multipop(EIP);
+restore;
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+SP = SP + 1;
+[[PTBR + 2*(SP/512)]*512 + SP%512]= EIP;
+ireturn;
