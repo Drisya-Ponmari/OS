@@ -1,0 +1,15 @@
+int main()
+{
+	decl
+		int temp;
+		str pname;
+	enddecl
+	begin
+		write("Enter name--");
+		read(pname);
+		temp = exposcall("Delete" , pname);
+		write(temp);
+		return 0;
+	end
+
+}

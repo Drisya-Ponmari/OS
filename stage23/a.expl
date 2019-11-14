@@ -1,0 +1,17 @@
+int main()
+{
+	decl
+		int temp;
+		int permi;
+		str Fname;
+	enddecl
+	
+	begin
+		write("Enter name saale");
+		read(Fname);
+		write("Enter permi saale");
+		read(permi);
+		temp = exposcall("Create",Fname,permi);
+		return 0;
+	end
+}

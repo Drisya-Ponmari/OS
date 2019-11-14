@@ -1,0 +1,7 @@
+load --exec ../OS/stage23/a.xsm
+load --exec ../OS/stage23/del.xsm
+load --module 7 ../OS/stage23/mod7.xsm
+load --module 4 ../OS/stage23/mod4.xsm
+load --module 0 ../OS/stage23/mod0.xsm
+load --int=15 ../OS/stage23/int15.xsm
+load --int=4 ../OS/Stage23/int4.xsm

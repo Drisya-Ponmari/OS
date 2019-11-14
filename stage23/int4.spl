@@ -1,0 +1,187 @@
+alias pid R15;
+pid = [SYSTEM_STATUS_TABLE + 1];
+[PROCESS_TABLE + (pid * 16 ) + 13] = SP;
+alias userSP R1;
+userSP = SP;
+SP = [PROCESS_TABLE + (pid * 16 ) + 11] * 512 - 1; 
+
+//Argument1::functionNumber
+alias PhysicalPageNum R2;
+alias offset R3;
+alias funNum R4;
+PhysicalPageNum = [PTBR + 2 *((userSP - 5)/512)];
+offset = (userSP - 5) % 512;
+funNum = [(PhysicalPageNum * 512) + offset];
+
+//Argument2::filename 
+alias filename R8;
+filename = [[PTBR + 2 *((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
+//Inode table
+
+alias inodeindex R5;
+alias flag R6;
+alias free R7;
+
+flag =0;
+free = -1;
+inodeindex = 0;
+
+while(inodeindex < 60) do
+
+	
+	if([INODE_TABLE + inodeindex*16 + 1] == -1 && free == -1) then
+		free = inodeindex;
+	endif;
+	
+	if([INODE_TABLE + inodeindex*16 + 1] == filename) then
+		flag = 1;
+		break;
+	endif;
+	
+	
+	inodeindex = inodeindex + 1;	
+endwhile;
+
+//return address value
+alias returnAdd R9;
+returnAdd = [PTBR + 2 *((userSP - 1)/512)] * 512 + ((userSP - 1)%512);
+
+//create
+if(funNum == 1) then
+	[PROCESS_TABLE + (pid * 16) + 9] = 1;
+	
+	alias permission R10;
+	permission = [[PTBR + 2 *((userSP - 3)/512)] * 512 + ((userSP - 3)%512)];
+	
+	if(flag == 1) then
+		[returnAdd] = 0;
+	else
+	
+	
+	if(free == -1) then
+		[returnAdd] = -1;
+	
+	else
+	
+	alias inodetable R11;
+	alias rootfile R12;
+	
+	inodetable = INODE_TABLE + (free*16);
+	rootfile = ROOT_FILE + (free*8);
+	
+	 //setting up inode able
+	 [inodetable + 0] = DATA;
+	 [inodetable + 1] = filename;
+	 [inodetable + 2] = 0;
+	 [inodetable + 8] = -1;
+	 [inodetable + 9] = -1;
+	 [inodetable + 10] = -1;
+	 [inodetable + 11] = -1;
+	 
+	 [inodetable + 3] = [PROCESS_TABLE + (pid * 16) + 3];
+	 [inodetable + 4] = permission;
+	 
+	 //setting up rootfile 
+	 [rootfile + 2] = DATA;
+	 [rootfile + 0] = filename;
+	 [rootfile + 1] = 0; 
+	 [rootfile + 3] = [PROCESS_TABLE + (pid * 16) + 3];
+	 [rootfile + 4] = permission;
+	 [returnAdd] = 0;
+endif;
+endif;
+endif;
+
+if(funNum ==4) then
+	[PROCESS_TABLE + (pid * 16) + 9] = 4;
+	
+	alias temp R10;
+		temp = 0;
+	
+	if(flag ==0) then
+		[returnAdd] = 0;
+	else
+	
+		alias inodetable R11;
+		alias rootfile R12;
+	
+		inodetable = INODE_TABLE + (inodeindex*16);
+		rootfile = ROOT_FILE + (inodeindex*8);
+	
+	if([inodetable +0] != DATA) then
+		[returnAdd] = -1;
+	else
+		if([inodetable +4] ==0) then
+			if([PROCESS_TABLE + (pid * 16) + 3]!= 1 && [PROCESS_TABLE + (pid * 16) + 3] != [inodetable+3]) then
+				[returnAdd]=-1;
+				temp = -1;
+		endif;
+	endif;
+	
+	
+	if(temp!=-1)then
+	//Aquire inode
+		multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R15);
+		R1 = 4;
+		R2 =pid;
+		R3 =inodeindex;
+		call MOD_0;
+		multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R15);
+	
+		
+		if(R15!=-1) then
+			if([FILE_STATUS_TABLE + (4*inodeindex) +1]  != -1 ) then
+				[returnAdd]=-2;
+				multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R15);
+				R1 = 5;
+				R2 = pid;
+				R3 = inodeindex;
+				call MOD_0;
+				multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R15);
+		else
+			alias block R13;
+			alias count R14;
+			
+			block = 8;
+			while(block < 12) do
+				
+				if([inodetable + block] != -1) then
+					count = 0;
+					while(count <4) do
+						
+						if ([BUFFER_TABLE + count * 4 + 0] == [inodetable + block] && [BUFFER_TABLE + count * 4 + 1] == 1) then
+							[BUFFER_TABLE + count * 4 + 1] = 0;
+						endif;
+					count = count + 1;
+					endwhile;
+					multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+					R1 = 4;
+					R2 = [inodetable + block];
+					R3 = pid;
+					call MOD_2;
+					multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+				endif;
+				[inodetable + block] = -1;
+				block = block +1;
+			endwhile;
+			
+			[inodetable + 1] = -1;			
+			[rootfile + 0] = -1;
+			multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+			R1 = 5;
+			R2 = pid;
+			R3 = inodeindex;
+			call MOD_0;
+			multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+			[returnAdd]=0;	
+			
+			
+		endif;
+	endif;
+	endif;
+	endif;
+	endif;
+endif;
+SP = [PROCESS_TABLE + (pid * 16) + 13];
+[PROCESS_TABLE + (pid * 16) + 9] = 0;
+ireturn;
